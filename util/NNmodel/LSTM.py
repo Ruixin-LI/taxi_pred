@@ -1,10 +1,14 @@
+import torch.nn as nn
+import torch
+import torch.nn.functional as F
+
 # Hyper-parameter
 feature_size = 49 # at time t, region (x,y) the 49 features
 result_num = 1 # numerical value represting people num
 hidden_size = 100
 proj_size = 1
 dense_size = 64
-n_layers = 2
+n_layers = 5
 
 #try to decrise the demension of the feature sequence
 class TaxiLSTM(nn.Module):
@@ -24,7 +28,7 @@ class TaxiLSTM(nn.Module):
             batch_first=True, 
             num_layers=n_layers
         )
-        self.gru = nn.GRU(feature_size, hidden_dim, batch_first=True, num_layers=n_layers)
+        #self.gru = nn.GRU(feature_size, hidden_dim, batch_first=True, num_layers=n_layers)
         self.mlp = nn.Sequential(
             nn.Linear(8+2+1, dense_dim),
             nn.ReLU(),
@@ -45,29 +49,39 @@ class TaxiLSTM(nn.Module):
         output = self.mlp(cat)
         return output
 
-# class TaxiRNN(nn.Module):
-#     def __init__(
-#         self,
-#         sequence_size,
-#         embedding_dim=1,
-#         hidden_dim=100,
-#         dense_dim=32,
-#         max_norm=2,
-#         n_layers=1,
-#     ):
-#         super().__init__()
-#         self.embedding = nn.Embedding(
-#             sequence_size,
-#             embedding_dim,
-#             norm_type=2,
-#             max_norm=max_norm,
-#         )
-#         self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True, num_layers=n_layers)
-#         self.mlp = nn.Sequential(
-#             nn.Linear(hidden_dim, dense_dim)
-#             nn.ReLU()
-#             nn.Linear(dense_dim, result_num)
-#         )
-        
-#     def __forward__(self, features, locations, times):
-#         embeds = self.embedding(features)
+
+class TaxiLSTM2(nn.Module):
+    def __init__(
+        self,
+        feature_size=feature_size,
+        hidden_dim=hidden_size,
+        proj_dim=proj_size,
+        dense_dim=dense_size,
+        n_layers=n_layers,
+    ):
+        super(TaxiLSTM2, self).__init__()
+        self.lstm = nn.LSTM(
+            input_size=feature_size, 
+            hidden_size=hidden_dim, 
+            proj_size=proj_dim, 
+            batch_first=True, 
+            num_layers=n_layers
+        )
+        #self.gru = nn.GRU(feature_size, hidden_dim, batch_first=True, num_layers=n_layers)
+        self.mlp = nn.Sequential(
+            nn.Linear(8+2*10+24, dense_dim),
+            nn.ReLU(),
+            nn.Linear(dense_dim, result_num)
+        )
+    def forward(self, features, locations, times):
+        #lstm: random initiate hidden and cell state 
+        rnn,(_,_) = self.lstm(features)
+        squeeze = rnn.squeeze()
+
+        x_dim = F.one_hot(locations[:,0],10)
+        y_dim = F.one_hot(locations[:,1],10)
+        t = F.one_hot(times,24)
+
+        cat = torch.cat((squeeze, x_dim, y_dim, t), axis=1)
+        output = self.mlp(cat)
+        return output
